@@ -13,10 +13,13 @@ import {
 import { getAvatar, setAvatar } from "@/store/avatar";
 import { getAnimals, saveAnimal } from "@/store/zoo";
 import { hapticError, hapticSuccess } from "@/utils/haptics";
-import { useEffect, useState } from "react";
+import * as Speech from "expo-speech";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Animated,
     Image,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -46,11 +49,23 @@ export default function CreateScreen() {
   const [avatar, setAvatarState] = useState<string | null>(null);
   const [achievement, setAchievement] = useState<Achievement | null>(null);
 
+  const imageFade = useRef(new Animated.Value(0)).current;
+
   const { speaking, speak } = useSpeech();
 
   useEffect(() => {
     getAvatar().then(setAvatarState);
   }, []);
+
+  function fadeInImage() {
+    imageFade.setValue(0);
+
+    Animated.timing(imageFade, {
+      toValue: 1,
+      duration: 650,
+      useNativeDriver: true
+    }).start();
+  }
 
   async function showAchievement(id: Parameters<typeof unlockAchievement>[0]) {
     const unlocked = await unlockAchievement(id);
@@ -65,6 +80,38 @@ export default function CreateScreen() {
     }, 3500);
   }
 
+  function getAnimalSound(animalName: string) {
+    const lower = animalName.toLowerCase();
+
+    if (lower.includes("cat")) return "Meow meow!";
+    if (lower.includes("dog") || lower.includes("puppy")) return "Woof woof!";
+    if (lower.includes("lion") || lower.includes("tiger")) return "Roar!";
+    if (lower.includes("bird") || lower.includes("parrot")) return "Tweet tweet!";
+    if (lower.includes("cow")) return "Moo!";
+    if (lower.includes("duck")) return "Quack quack!";
+    if (lower.includes("frog")) return "Ribbit ribbit!";
+    if (lower.includes("sheep")) return "Baa!";
+    if (lower.includes("pig")) return "Oink oink!";
+    if (lower.includes("horse")) return "Neigh!";
+    if (lower.includes("elephant")) return "Trumpet!";
+    if (lower.includes("dragon")) return "Roar sparkle roar!";
+    if (lower.includes("robot")) return "Beep boop!";
+
+    return "Sparkle sparkle!";
+  }
+
+  async function handleAnimalSound() {
+    if (!name.trim()) return;
+
+    await hapticSuccess();
+
+    Speech.stop();
+    Speech.speak(getAnimalSound(name), {
+      rate: 0.85,
+      pitch: 1.25
+    });
+  }
+
   async function handleCreate() {
     if (!name.trim()) return;
 
@@ -74,6 +121,7 @@ export default function CreateScreen() {
     setSaved(false);
     setImageUrl(null);
     setDescription("");
+    imageFade.setValue(0);
 
     try {
       const { description, imagePrompt } = await getAnimalText(
@@ -91,6 +139,7 @@ export default function CreateScreen() {
           setImageUrl(url);
           setImageReady(true);
           setIsGenerating(false);
+          fadeInImage();
 
           if (!avatar) {
             await setAvatar(url);
@@ -145,6 +194,7 @@ export default function CreateScreen() {
     setTextReady(false);
     setImageReady(false);
     setIsGenerating(false);
+    imageFade.setValue(0);
   }
 
   return (
@@ -172,7 +222,27 @@ export default function CreateScreen() {
         showsVerticalScrollIndicator={false}
       >
         {textReady && imageReady && imageUrl && (
-          <Image source={{ uri: imageUrl }} style={styles.heroImage} />
+          <Pressable onPress={handleAnimalSound}>
+            <Animated.Image
+              source={{ uri: imageUrl }}
+              resizeMode="contain"
+              style={[
+                styles.heroImage,
+                {
+                  opacity: imageFade,
+                  transform: [
+                    {
+                      scale: imageFade.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.96, 1]
+                      })
+                    }
+                  ]
+                }
+              ]}
+            />
+            <Text style={styles.tapHint}>👆 Tap the animal for sound</Text>
+          </Pressable>
         )}
 
         {textReady && !imageReady && (
@@ -351,11 +421,17 @@ const styles = StyleSheet.create({
   heroImage: {
     width: "100%",
     height: 320,
-    resizeMode: "contain",
     borderRadius: theme.radius.lg,
     backgroundColor: theme.colors.input,
     borderWidth: 1,
     borderColor: theme.colors.accentBorder
+  },
+  tapHint: {
+    marginTop: 8,
+    color: theme.colors.muted,
+    textAlign: "center",
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold
   },
   heroLoadingBox: {
     height: 260,
