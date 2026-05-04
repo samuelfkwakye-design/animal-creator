@@ -1,11 +1,19 @@
 import { GradientButton } from "@/components/GradientButton";
 import { ArtStyleKey, StylePicker } from "@/components/StylePicker";
 import { theme } from "@/constants/theme";
-import { generateAnimal } from "@/hooks/useAnimalGenerator";
+import {
+    getAnimalImage,
+    getAnimalText
+} from "@/hooks/useAnimalGenerator";
 import { useSpeech } from "@/hooks/useSpeech";
-import { saveAnimal } from "@/store/zoo";
+import {
+    Achievement,
+    unlockAchievement
+} from "@/store/achievements";
+import { getAvatar, setAvatar } from "@/store/avatar";
+import { getAnimals, saveAnimal } from "@/store/zoo";
 import { hapticError, hapticSuccess } from "@/utils/haptics";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -17,41 +25,87 @@ import {
 } from "react-native";
 
 const suggestions = [
-  "blue wolf with fire wings",
-  "tiny space elephant",
-  "rainbow dragon cat",
-  "golden lion fish",
-  "moon rabbit unicorn",
+  "fire lion",
+  "rainbow dragon",
+  "space elephant",
   "robot tiger"
 ];
 
 export default function CreateScreen() {
   const [name, setName] = useState("");
-  const [style, setStyle] = useState<ArtStyleKey>("cartoon");
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [style, setStyle] = useState<ArtStyleKey>("3d");
 
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [textReady, setTextReady] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+
+  const [saved, setSaved] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
 
+  const [avatar, setAvatarState] = useState<string | null>(null);
+  const [achievement, setAchievement] = useState<Achievement | null>(null);
+
   const { speaking, speak } = useSpeech();
+
+  useEffect(() => {
+    getAvatar().then(setAvatarState);
+  }, []);
+
+  async function showAchievement(id: Parameters<typeof unlockAchievement>[0]) {
+    const unlocked = await unlockAchievement(id);
+
+    if (!unlocked) return;
+
+    setAchievement(unlocked);
+    await hapticSuccess();
+
+    setTimeout(() => {
+      setAchievement(null);
+    }, 3500);
+  }
 
   async function handleCreate() {
     if (!name.trim()) return;
 
-    setLoading(true);
+    setIsGenerating(true);
+    setTextReady(false);
+    setImageReady(false);
     setSaved(false);
+    setImageUrl(null);
+    setDescription("");
 
     try {
-      const result = await generateAnimal(name.trim(), style);
-      setImageUrl(result.imageUrl);
-      setDescription(result.description);
-      await hapticSuccess();
+      const { description, imagePrompt } = await getAnimalText(
+        name.trim(),
+        style
+      );
+
+      setDescription(description);
+      setTextReady(true);
+
+      await showAchievement("FIRST_ANIMAL");
+
+      getAnimalImage(imagePrompt)
+        .then(async (url) => {
+          setImageUrl(url);
+          setImageReady(true);
+          setIsGenerating(false);
+
+          if (!avatar) {
+            await setAvatar(url);
+            setAvatarState(url);
+            await showAchievement("FIRST_AVATAR");
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          setIsGenerating(false);
+        });
     } catch (error) {
       console.log(error);
       await hapticError();
-    } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   }
 
@@ -67,6 +121,20 @@ export default function CreateScreen() {
 
     setSaved(true);
     await hapticSuccess();
+
+    const animals = await getAnimals();
+
+    if (animals.length >= 5) {
+      await showAchievement("FIVE_ANIMALS");
+    }
+  }
+
+  async function handleSetAvatar() {
+    if (!imageUrl) return;
+
+    await setAvatar(imageUrl);
+    setAvatarState(imageUrl);
+    await showAchievement("FIRST_AVATAR");
   }
 
   function reset() {
@@ -74,99 +142,170 @@ export default function CreateScreen() {
     setImageUrl(null);
     setDescription("");
     setSaved(false);
+    setTextReady(false);
+    setImageReady(false);
+    setIsGenerating(false);
   }
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.emoji}>🐾</Text>
-        <Text style={styles.title}>Animal Creator</Text>
-        <Text style={styles.subtitle}>Type any animal you can imagine</Text>
-      </View>
-
-      <TextInput
-        placeholder="Type your animal..."
-        placeholderTextColor={theme.colors.muted}
-        value={name}
-        onChangeText={setName}
-        style={styles.input}
-        returnKeyType="go"
-        onSubmitEditing={handleCreate}
-      />
-
-      <StylePicker selected={style} onSelect={setStyle} />
-
-      <GradientButton
-        title="✨ Create It!"
-        onPress={handleCreate}
-        disabled={!name.trim() || loading}
-        loading={loading}
-      />
-
-      {!imageUrl && !loading && (
-        <View style={styles.suggestions}>
-          {suggestions.map((item) => (
-            <GradientButton
-              key={item}
-              title={item}
-              variant="secondary"
-              onPress={() => setName(item)}
-              style={styles.suggestionButton}
-            />
-          ))}
-        </View>
-      )}
-
-      {loading && (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator color={theme.colors.primaryLight} size="large" />
-          <Text style={styles.loadingText}>Creating magic...</Text>
-        </View>
-      )}
-
-      {imageUrl && (
-        <View style={styles.result}>
-          <Text style={styles.resultName}>“{name}”</Text>
-
-          <Image source={{ uri: imageUrl }} style={styles.image} />
-
-          <View style={styles.descriptionCard}>
-            <Text style={styles.description}>{description}</Text>
-          </View>
-
-          <View style={styles.actions}>
-            <GradientButton
-              title={speaking ? "🔇 Stop" : "🔊 Read it!"}
-              variant="secondary"
-              onPress={() => speak(description)}
-              style={styles.actionButton}
-            />
-            <GradientButton
-              title={saved ? "✅ Saved!" : "🦁 Save"}
-              variant="secondary"
-              onPress={handleSave}
-              disabled={saved}
-              style={styles.actionButton}
-            />
-          </View>
-
-          <View style={styles.actions}>
-            <GradientButton
-              title="🎲 Surprise!"
-              variant="secondary"
-              onPress={handleCreate}
-              style={styles.actionButton}
-            />
-            <GradientButton
-              title="🔄 New Animal"
-              variant="ghost"
-              onPress={reset}
-              style={styles.actionButton}
-            />
+    <View style={styles.page}>
+      {/* 🔥 ACHIEVEMENT POPUP */}
+      {achievement && (
+        <View style={styles.achievementToast}>
+          <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
+          <View style={styles.achievementTextBox}>
+            <Text style={styles.achievementTitle}>
+              Achievement unlocked!
+            </Text>
+            <Text style={styles.achievementName}>
+              {achievement.title}
+            </Text>
+            <Text style={styles.achievementDescription}>
+              {achievement.description}
+            </Text>
           </View>
         </View>
       )}
-    </ScrollView>
+
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={styles.avatar} />
+          ) : (
+            <Text style={styles.emoji}>🐾</Text>
+          )}
+
+          <View style={styles.headerText}>
+            <Text style={styles.greeting}>Hi Jason 👋</Text>
+            <Text style={styles.title}>Jason’s Animal World</Text>
+            <Text style={styles.subtitle}>
+              Create your magical animals ✨
+            </Text>
+          </View>
+        </View>
+
+        <TextInput
+          placeholder="Type your animal..."
+          placeholderTextColor={theme.colors.muted}
+          value={name}
+          onChangeText={setName}
+          style={styles.input}
+          returnKeyType="go"
+          onSubmitEditing={handleCreate}
+        />
+
+        <StylePicker selected={style} onSelect={setStyle} />
+
+        {!textReady && !isGenerating && (
+          <View style={styles.suggestions}>
+            {suggestions.map((item) => (
+              <GradientButton
+                key={item}
+                title={item}
+                variant="secondary"
+                onPress={() => setName(item)}
+                style={styles.suggestionButton}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* INITIAL LOADING */}
+        {isGenerating && !textReady && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator
+              color={theme.colors.primaryLight}
+              size="large"
+            />
+            <Text style={styles.loadingText}>
+              🪄 Creating your animal...
+            </Text>
+          </View>
+        )}
+
+        {/* RESULT */}
+        {textReady && (
+          <View style={styles.result}>
+            <Text style={styles.resultName}>“{name}”</Text>
+
+            {/* 🎨 IMAGE FIRST */}
+            {!imageReady && (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator color={theme.colors.primaryLight} />
+                <Text style={styles.loadingText}>
+                  🎨 Drawing your animal...
+                </Text>
+              </View>
+            )}
+
+            {imageReady && imageUrl && (
+              <Image source={{ uri: imageUrl }} style={styles.image} />
+            )}
+
+            {/* 🧠 TEXT AFTER */}
+            <View style={styles.descriptionCard}>
+              <Text style={styles.description}>{description}</Text>
+            </View>
+
+            <View style={styles.actions}>
+              <GradientButton
+                title={speaking ? "🔇 Stop" : "🔊 Read"}
+                variant="secondary"
+                onPress={() => speak(description)}
+                style={styles.actionButton}
+              />
+
+              <GradientButton
+                title={saved ? "✅ Saved" : "🦁 Save"}
+                variant="secondary"
+                onPress={handleSave}
+                disabled={saved || !imageReady}
+                style={styles.actionButton}
+              />
+            </View>
+
+            {imageReady && (
+              <GradientButton
+                title="🐾 Make My Avatar"
+                variant="secondary"
+                onPress={handleSetAvatar}
+              />
+            )}
+
+            <View style={styles.actions}>
+              <GradientButton
+                title="🎲 Again"
+                variant="secondary"
+                onPress={handleCreate}
+                style={styles.actionButton}
+              />
+
+              <GradientButton
+                title="🔄 New"
+                variant="ghost"
+                onPress={reset}
+                style={styles.actionButton}
+              />
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {!textReady && (
+        <View style={styles.bottomBar}>
+          <GradientButton
+            title={isGenerating ? "✨ Creating..." : "✨ Create It!"}
+            onPress={handleCreate}
+            disabled={!name.trim() || isGenerating}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -175,26 +314,80 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background
   },
+  achievementToast: {
+    position: "absolute",
+    top: 18,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.card,
+    borderWidth: 2,
+    borderColor: theme.colors.primaryLight
+  },
+  achievementEmoji: {
+    fontSize: 38
+  },
+  achievementTextBox: {
+    flex: 1
+  },
+  achievementTitle: {
+    color: theme.colors.primaryLight,
+    fontSize: 13,
+    fontFamily: theme.fonts.bodyBold
+  },
+  achievementName: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontFamily: theme.fonts.headingBold
+  },
+  achievementDescription: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    fontFamily: theme.fonts.bodyBold
+  },
   container: {
-    padding: theme.spacing.screen,
-    gap: 16,
-    paddingBottom: 110
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 120,
+    gap: 14
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 20
+    gap: 12
+  },
+  headerText: {
+    flex: 1
+  },
+  avatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
+    borderColor: theme.colors.primaryLight
   },
   emoji: {
-    fontSize: 58
+    fontSize: 42
+  },
+  greeting: {
+    color: theme.colors.muted,
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold
   },
   title: {
     color: theme.colors.text,
-    fontSize: 34,
-    fontFamily: theme.fonts.heading
+    fontSize: 30,
+    fontFamily: theme.fonts.heading,
+    lineHeight: 34
   },
   subtitle: {
     color: theme.colors.muted,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: theme.fonts.bodyBold
   },
   input: {
@@ -204,7 +397,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: theme.radius.lg,
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: theme.fonts.bodyBold
   },
   suggestions: {
@@ -216,26 +409,28 @@ const styles = StyleSheet.create({
     flexGrow: 1
   },
   loadingBox: {
+    minHeight: 220,
     alignItems: "center",
-    gap: 10,
-    marginTop: 24
+    justifyContent: "center",
+    gap: 12
   },
   loadingText: {
     color: theme.colors.muted,
-    fontFamily: theme.fonts.bodyBold
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 17
   },
   result: {
-    gap: 16,
-    marginTop: 10
+    gap: 14
   },
   resultName: {
     color: theme.colors.primaryLight,
-    fontSize: 26,
+    fontSize: 24,
     textAlign: "center",
     fontFamily: theme.fonts.headingBold
   },
   image: {
     width: "100%",
+    maxHeight: 340,
     aspectRatio: 1,
     borderRadius: theme.radius.lg,
     backgroundColor: theme.colors.input,
@@ -243,7 +438,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.accentBorder
   },
   descriptionCard: {
-    padding: 18,
+    padding: 16,
     borderRadius: theme.radius.lg,
     backgroundColor: theme.colors.card,
     borderWidth: 1,
@@ -251,8 +446,8 @@ const styles = StyleSheet.create({
   },
   description: {
     color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 27,
+    fontSize: 16,
+    lineHeight: 24,
     textAlign: "center",
     fontFamily: theme.fonts.bodyBold
   },
@@ -262,5 +457,16 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1
+  },
+  bottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 76,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "rgba(8,11,24,0.96)",
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border
   }
 });

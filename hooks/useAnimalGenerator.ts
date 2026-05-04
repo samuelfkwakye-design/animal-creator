@@ -6,7 +6,10 @@ const CLAUDE_URL =
     ? "/api/generate"
     : "https://api.anthropic.com/v1/messages";
 
-export async function generateAnimal(
+/**
+ * STEP 1: Get TEXT FIRST (FAST)
+ */
+export async function getAnimalText(
   name: string,
   style: keyof typeof ART_STYLES
 ) {
@@ -61,7 +64,9 @@ Keep description under 40 words. Be enthusiastic!
   const claudeData = await claudeRes.json();
 
   const text =
-    Platform.OS === "web" ? claudeData.text : claudeData.content?.[0]?.text || "";
+    Platform.OS === "web"
+      ? claudeData.text
+      : claudeData.content?.[0]?.text || "";
 
   const [descriptionRaw, imagePromptRaw] = text.split("IMAGE:");
 
@@ -75,29 +80,35 @@ ${styleDesc}.
 Cute magical animal, beautiful children's book quality, polished digital art, clear full-body creature, joyful expression, rich colour, soft lighting, high detail, no text, no letters, no watermark, no humans.
 `.trim();
 
-  let imageUrl = "";
-
-  if (Platform.OS === "web") {
-    const imageRes = await fetch("/api/image", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ prompt: imagePrompt })
-    });
-
-    if (!imageRes.ok) {
-      throw new Error("Image generation failed");
-    }
-
-    const imageData = await imageRes.json();
-    imageUrl = imageData.imageUrl;
-  } else {
-    throw new Error("fal image generation is currently wired through Vercel web API only");
-  }
-
   return {
     description,
-    imageUrl
+    imagePrompt
   };
+}
+
+/**
+ * STEP 2: Get IMAGE AFTER (SLOWER)
+ */
+export async function getAnimalImage(imagePrompt: string) {
+  if (Platform.OS !== "web") {
+    throw new Error(
+      "fal image generation is currently wired through Vercel web API only"
+    );
+  }
+
+  const imageRes = await fetch("/api/image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ prompt: imagePrompt })
+  });
+
+  if (!imageRes.ok) {
+    throw new Error("Image generation failed");
+  }
+
+  const imageData = await imageRes.json();
+
+  return imageData.imageUrl;
 }
