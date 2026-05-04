@@ -14,6 +14,10 @@ import { getAvatar, setAvatar } from "@/store/avatar";
 import { getAnimals, saveAnimal } from "@/store/zoo";
 import { hapticError, hapticSuccess } from "@/utils/haptics";
 import * as Speech from "expo-speech";
+import {
+    ExpoSpeechRecognitionModule,
+    useSpeechRecognitionEvent
+} from "expo-speech-recognition";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -39,6 +43,7 @@ export default function CreateScreen() {
   const [style, setStyle] = useState<ArtStyleKey>("3d");
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [textReady, setTextReady] = useState(false);
   const [imageReady, setImageReady] = useState(false);
 
@@ -52,6 +57,28 @@ export default function CreateScreen() {
   const imageFade = useRef(new Animated.Value(0)).current;
 
   const { speaking, speak } = useSpeech();
+
+  useSpeechRecognitionEvent("start", () => {
+    setIsListening(true);
+  });
+
+  useSpeechRecognitionEvent("end", () => {
+    setIsListening(false);
+  });
+
+  useSpeechRecognitionEvent("result", (event) => {
+    const spokenText = event.results[0]?.transcript;
+
+    if (spokenText) {
+      setName(spokenText.trim().toLowerCase());
+    }
+  });
+
+  useSpeechRecognitionEvent("error", async (event) => {
+    console.log("Speech error:", event.error, event.message);
+    setIsListening(false);
+    await hapticError();
+  });
 
   useEffect(() => {
     getAvatar().then(setAvatarState);
@@ -78,6 +105,31 @@ export default function CreateScreen() {
     setTimeout(() => {
       setAchievement(null);
     }, 3500);
+  }
+
+  async function handleListen() {
+    try {
+      const permission =
+        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+
+      if (!permission.granted) {
+        await hapticError();
+        return;
+      }
+
+      await hapticSuccess();
+
+      ExpoSpeechRecognitionModule.start({
+        lang: "en-GB",
+        interimResults: false,
+        maxAlternatives: 1,
+        continuous: false
+      });
+    } catch (error) {
+      console.log(error);
+      setIsListening(false);
+      await hapticError();
+    }
   }
 
   function getAnimalSound(animalName: string) {
@@ -241,7 +293,7 @@ export default function CreateScreen() {
                 }
               ]}
             />
-            <Text style={styles.tapHint}>👆 Tap the animal for sound</Text>
+            <Text style={styles.tapHint}>👆 Tap animal for sound</Text>
           </Pressable>
         )}
 
@@ -263,7 +315,7 @@ export default function CreateScreen() {
             <Text style={styles.greeting}>Hi Jason 👋</Text>
             <Text style={styles.title}>Jason’s Animal World</Text>
             <Text style={styles.subtitle}>
-              Create your magical animals ✨
+              Type it or say it 🎙️
             </Text>
           </View>
         </View>
@@ -276,6 +328,13 @@ export default function CreateScreen() {
           style={styles.input}
           returnKeyType="go"
           onSubmitEditing={handleCreate}
+        />
+
+        <GradientButton
+          title={isListening ? "🎙️ Listening..." : "🎙️ Say Animal"}
+          variant="secondary"
+          onPress={handleListen}
+          disabled={isListening || isGenerating}
         />
 
         <StylePicker selected={style} onSelect={setStyle} />
@@ -339,34 +398,34 @@ export default function CreateScreen() {
               />
             )}
 
-            <View style={styles.actions}>
-              <GradientButton
-                title="🎲 Again"
-                variant="secondary"
-                onPress={handleCreate}
-                style={styles.actionButton}
-              />
+            <GradientButton
+              title="✨ Create Again"
+              onPress={handleCreate}
+              disabled={!name.trim() || isGenerating}
+            />
 
-              <GradientButton
-                title="🔄 New"
-                variant="ghost"
-                onPress={reset}
-                style={styles.actionButton}
-              />
-            </View>
+            <GradientButton
+              title="🔄 New Animal"
+              variant="ghost"
+              onPress={reset}
+            />
           </View>
         )}
       </ScrollView>
 
-      {!textReady && (
-        <View style={styles.bottomBar}>
-          <GradientButton
-            title={isGenerating ? "✨ Creating..." : "✨ Create It!"}
-            onPress={handleCreate}
-            disabled={!name.trim() || isGenerating}
-          />
-        </View>
-      )}
+      <View style={styles.bottomBar}>
+        <GradientButton
+          title={
+            isGenerating
+              ? "✨ Creating..."
+              : textReady
+                ? "✨ Create Again"
+                : "✨ Create It!"
+          }
+          onPress={handleCreate}
+          disabled={!name.trim() || isGenerating}
+        />
+      </View>
     </View>
   );
 }
@@ -415,7 +474,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 120,
+    paddingBottom: 140,
     gap: 14
   },
   heroImage: {
