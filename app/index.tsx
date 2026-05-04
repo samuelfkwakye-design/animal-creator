@@ -1,15 +1,9 @@
 import { GradientButton } from "@/components/GradientButton";
 import { ArtStyleKey, StylePicker } from "@/components/StylePicker";
 import { theme } from "@/constants/theme";
-import {
-    getAnimalImage,
-    getAnimalText
-} from "@/hooks/useAnimalGenerator";
+import { getAnimalImage, getAnimalText } from "@/hooks/useAnimalGenerator";
 import { useSpeech } from "@/hooks/useSpeech";
-import {
-    Achievement,
-    unlockAchievement
-} from "@/store/achievements";
+import { Achievement, unlockAchievement } from "@/store/achievements";
 import { getAvatar, setAvatar } from "@/store/avatar";
 import { getAnimals, saveAnimal } from "@/store/zoo";
 import { hapticError, hapticSuccess } from "@/utils/haptics";
@@ -21,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Image,
     Keyboard,
@@ -35,10 +30,12 @@ import {
 } from "react-native";
 
 const suggestions = [
-  "fire lion",
-  "rainbow dragon",
-  "space elephant",
-  "robot tiger"
+  "magic castle",
+  "space rocket",
+  "rainbow car",
+  "robot dog",
+  "superhero cat",
+  "underwater house"
 ];
 
 export default function CreateScreen() {
@@ -57,6 +54,7 @@ export default function CreateScreen() {
   const [avatar, setAvatarState] = useState<string | null>(null);
   const [achievement, setAchievement] = useState<Achievement | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const imageFade = useRef(new Animated.Value(0)).current;
   const micPulse = useRef(new Animated.Value(1)).current;
@@ -144,10 +142,6 @@ export default function CreateScreen() {
 
     setAchievement(unlocked);
     await hapticSuccess();
-
-    setTimeout(() => {
-      setAchievement(null);
-    }, 3500);
   }
 
   async function handleListen() {
@@ -175,8 +169,8 @@ export default function CreateScreen() {
     }
   }
 
-  function getAnimalSound(animalName: string) {
-    const lower = animalName.toLowerCase();
+  function getCreationSound(prompt: string) {
+    const lower = prompt.toLowerCase();
 
     if (lower.includes("cat")) return "Meow meow!";
     if (lower.includes("dog") || lower.includes("puppy")) return "Woof woof!";
@@ -191,17 +185,21 @@ export default function CreateScreen() {
     if (lower.includes("elephant")) return "Trumpet!";
     if (lower.includes("dragon")) return "Roar sparkle roar!";
     if (lower.includes("robot")) return "Beep boop!";
+    if (lower.includes("rocket")) return "Whoosh!";
+    if (lower.includes("car")) return "Vroom vroom!";
+    if (lower.includes("castle")) return "Magic sparkle!";
+    if (lower.includes("train")) return "Choo choo!";
 
     return "Sparkle sparkle!";
   }
 
-  async function handleAnimalSound() {
+  async function handleCreationSound() {
     if (!name.trim()) return;
 
     await hapticSuccess();
 
     Speech.stop();
-    Speech.speak(getAnimalSound(name), {
+    Speech.speak(getCreationSound(name), {
       rate: 0.85,
       pitch: 1.25
     });
@@ -211,6 +209,7 @@ export default function CreateScreen() {
     if (!name.trim()) return;
 
     Keyboard.dismiss();
+    setMenuOpen(false);
 
     setIsGenerating(true);
     setTextReady(false);
@@ -244,8 +243,9 @@ export default function CreateScreen() {
             await showAchievement("FIRST_AVATAR");
           }
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.log(err);
+          await hapticError();
           setIsGenerating(false);
         });
     } catch (error) {
@@ -266,6 +266,7 @@ export default function CreateScreen() {
     });
 
     setSaved(true);
+    setMenuOpen(false);
     await hapticSuccess();
 
     const animals = await getAnimals();
@@ -280,7 +281,14 @@ export default function CreateScreen() {
 
     await setAvatar(imageUrl);
     setAvatarState(imageUrl);
+    setMenuOpen(false);
     await showAchievement("FIRST_AVATAR");
+  }
+
+  function handleRead() {
+    if (!description) return;
+    speak(description);
+    setMenuOpen(false);
   }
 
   function reset() {
@@ -291,7 +299,13 @@ export default function CreateScreen() {
     setTextReady(false);
     setImageReady(false);
     setIsGenerating(false);
+    setMenuOpen(false);
     imageFade.setValue(0);
+  }
+
+  function showComingSoon(title: string) {
+    setMenuOpen(false);
+    Alert.alert(title, "This will be added soon.");
   }
 
   return (
@@ -300,23 +314,6 @@ export default function CreateScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
-      {achievement && (
-        <View style={styles.achievementToast}>
-          <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
-          <View style={styles.achievementTextBox}>
-            <Text style={styles.achievementTitle}>
-              Achievement unlocked!
-            </Text>
-            <Text style={styles.achievementName}>
-              {achievement.title}
-            </Text>
-            <Text style={styles.achievementDescription}>
-              {achievement.description}
-            </Text>
-          </View>
-        </View>
-      )}
-
       <ScrollView
         contentContainerStyle={[
           styles.container,
@@ -325,8 +322,126 @@ export default function CreateScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {textReady && imageReady && imageUrl && (
-          <Pressable onPress={handleAnimalSound}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatar} />
+            ) : (
+              <Text style={styles.emoji}>✨</Text>
+            )}
+
+            <View style={styles.headerText}>
+              <Text style={styles.greeting}>Hi Jason 👋</Text>
+              <Text style={styles.title}>Magic Creator</Text>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={() => setMenuOpen((current) => !current)}
+            style={styles.menuButton}
+          >
+            <Text style={styles.menuButtonText}>☰</Text>
+          </Pressable>
+        </View>
+
+        {menuOpen && (
+          <View style={styles.menuPanel}>
+            <Text style={styles.menuTitle}>Menu</Text>
+
+            <Pressable
+              onPress={handleSave}
+              disabled={!imageReady || saved}
+              style={[
+                styles.menuItem,
+                (!imageReady || saved) && styles.menuItemDisabled
+              ]}
+            >
+              <Text style={styles.menuItemText}>
+                {saved ? "✅ Saved" : "💾 Save Creation"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleRead}
+              disabled={!description}
+              style={[styles.menuItem, !description && styles.menuItemDisabled]}
+            >
+              <Text style={styles.menuItemText}>
+                {speaking ? "🔇 Stop Reading" : "🔊 Read Aloud"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleSetAvatar}
+              disabled={!imageReady}
+              style={[styles.menuItem, !imageReady && styles.menuItemDisabled]}
+            >
+              <Text style={styles.menuItemText}>🙂 Make Avatar</Text>
+            </Pressable>
+
+            <Pressable onPress={reset} style={styles.menuItem}>
+              <Text style={styles.menuItemText}>🔄 New Creation</Text>
+            </Pressable>
+
+            <View style={styles.menuSection}>
+              <Text style={styles.menuSectionTitle}>Style</Text>
+              <StylePicker selected={style} onSelect={setStyle} />
+            </View>
+
+            <View style={styles.menuSection}>
+              <Text style={styles.menuSectionTitle}>Ideas</Text>
+              <View style={styles.suggestions}>
+                {suggestions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => {
+                      setName(item);
+                      setMenuOpen(false);
+                    }}
+                    style={styles.suggestionChip}
+                  >
+                    <Text style={styles.suggestionText}>{item}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {achievement && (
+              <View style={styles.achievementBox}>
+                <Text style={styles.achievementText}>
+                  {achievement.emoji} {achievement.title}
+                </Text>
+              </View>
+            )}
+
+            <Pressable
+              onPress={() => showComingSoon("Battle")}
+              style={styles.menuItem}
+            >
+              <Text style={styles.menuItemText}>⚔️ Battle</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => showComingSoon("Achievements")}
+              style={styles.menuItem}
+            >
+              <Text style={styles.menuItemText}>🏆 Achievements</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => showComingSoon("Settings")}
+              style={styles.menuItem}
+            >
+              <Text style={styles.menuItemText}>⚙️ Settings</Text>
+            </Pressable>
+          </View>
+        )}
+
+        <Pressable
+          onPress={imageReady ? handleCreationSound : undefined}
+          style={styles.heroBox}
+        >
+          {imageReady && imageUrl ? (
             <Animated.Image
               source={{ uri: imageUrl }}
               resizeMode="contain"
@@ -345,156 +460,67 @@ export default function CreateScreen() {
                 }
               ]}
             />
-            <Text style={styles.tapHint}>👆 Tap animal for sound</Text>
-          </Pressable>
-        )}
-
-        {textReady && !imageReady && (
-          <View style={styles.heroLoadingBox}>
-            <ActivityIndicator color={theme.colors.primaryLight} />
-            <Text style={styles.loadingText}>🎨 Drawing your animal...</Text>
-          </View>
-        )}
-
-        <View style={styles.header}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatar} />
+          ) : isGenerating ? (
+            <View style={styles.heroLoading}>
+              <ActivityIndicator
+                color={theme.colors.primaryLight}
+                size="large"
+              />
+              <Text style={styles.loadingText}>
+                {textReady ? "🎨 Drawing picture..." : "🪄 Creating picture..."}
+              </Text>
+            </View>
           ) : (
-            <Text style={styles.emoji}>🐾</Text>
+            <View style={styles.heroPlaceholder}>
+              <Text style={styles.placeholderEmoji}>✨</Text>
+              <Text style={styles.placeholderText}>What shall we create?</Text>
+            </View>
           )}
-
-          <View style={styles.headerText}>
-            <Text style={styles.greeting}>Hi Jason 👋</Text>
-            <Text style={styles.title}>Jason’s Animal World</Text>
-            <Text style={styles.subtitle}>Type it, say it, or use emojis ✨</Text>
-          </View>
-        </View>
-
-        <TextInput
-          placeholder="Type animal or emoji..."
-          placeholderTextColor={theme.colors.muted}
-          value={name}
-          onChangeText={setName}
-          style={styles.input}
-          returnKeyType="go"
-          onSubmitEditing={handleCreate}
-        />
-
-        <Pressable
-          onPress={handleListen}
-          disabled={isListening || isGenerating}
-          style={({ pressed }) => [
-            styles.micButton,
-            isListening && styles.micButtonActive,
-            pressed && !isListening && styles.micButtonPressed,
-            (isListening || isGenerating) && styles.micButtonDisabled
-          ]}
-        >
-          <Animated.View
-            style={[
-              styles.micCircle,
-              isListening && styles.micCircleActive,
-              { transform: [{ scale: micPulse }] }
-            ]}
-          >
-            <Text style={styles.micEmoji}>{isListening ? "🎙️" : "🎤"}</Text>
-          </Animated.View>
-
-          <View style={styles.micTextBox}>
-            <Text style={styles.micTitle}>
-              {isListening ? "I’m listening..." : "Tap to Speak"}
-            </Text>
-            <Text style={styles.micSubtitle}>
-              {isListening ? "Say an animal name" : "Jason can say lion, tiger, or 🦁🔥"}
-            </Text>
-          </View>
         </Pressable>
 
-        <StylePicker selected={style} onSelect={setStyle} />
-
-        {!textReady && !isGenerating && (
-          <View style={styles.suggestions}>
-            {suggestions.map((item) => (
-              <GradientButton
-                key={item}
-                title={item}
-                variant="secondary"
-                onPress={() => setName(item)}
-                style={styles.suggestionButton}
-              />
-            ))}
-          </View>
+        {imageReady && (
+          <Text style={styles.tapHint}>Tap picture for sound</Text>
         )}
 
-        {isGenerating && !textReady && (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator
-              color={theme.colors.primaryLight}
-              size="large"
-            />
-            <Text style={styles.loadingText}>
-              🪄 Creating your animal...
-            </Text>
-          </View>
-        )}
+        <View style={styles.inputRow}>
+          <TextInput
+            placeholder="Type anything or emoji..."
+            placeholderTextColor={theme.colors.muted}
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            returnKeyType="go"
+            onSubmitEditing={handleCreate}
+          />
 
-        {textReady && (
-          <View style={styles.result}>
-            <Text style={styles.resultName}>“{name}”</Text>
+          <Pressable
+            onPress={handleListen}
+            disabled={isListening || isGenerating}
+            style={[
+              styles.smallMicButton,
+              isListening && styles.smallMicButtonActive,
+              (isListening || isGenerating) && styles.micButtonDisabled
+            ]}
+          >
+            <Animated.Text
+              style={[
+                styles.smallMicText,
+                { transform: [{ scale: micPulse }] }
+              ]}
+            >
+              {isListening ? "🎙️" : "🎤"}
+            </Animated.Text>
+          </Pressable>
+        </View>
 
-            <View style={styles.descriptionCard}>
-              <Text style={styles.description}>{description}</Text>
-            </View>
-
-            <View style={styles.actions}>
-              <GradientButton
-                title={speaking ? "🔇 Stop" : "🔊 Read"}
-                variant="secondary"
-                onPress={() => speak(description)}
-                style={styles.actionButton}
-              />
-
-              <GradientButton
-                title={saved ? "✅ Saved" : "🦁 Save"}
-                variant="secondary"
-                onPress={handleSave}
-                disabled={saved || !imageReady}
-                style={styles.actionButton}
-              />
-            </View>
-
-            {imageReady && (
-              <GradientButton
-                title="🐾 Make My Avatar"
-                variant="secondary"
-                onPress={handleSetAvatar}
-              />
-            )}
-
-            <GradientButton
-              title="✨ Create Again"
-              onPress={handleCreate}
-              disabled={!name.trim() || isGenerating}
-            />
-
-            <GradientButton
-              title="🔄 New Animal"
-              variant="ghost"
-              onPress={reset}
-            />
-          </View>
+        {isListening && (
+          <Text style={styles.listeningText}>I’m listening...</Text>
         )}
       </ScrollView>
 
       <View style={[styles.bottomBar, { bottom: keyboardHeight }]}>
         <GradientButton
-          title={
-            isGenerating
-              ? "✨ Creating..."
-              : textReady
-                ? "✨ Create Again"
-                : "✨ Create It!"
-          }
+          title={isGenerating ? "✨ Creating..." : "✨ Create It!"}
           onPress={handleCreate}
           disabled={!name.trim() || isGenerating}
         />
@@ -508,78 +534,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background
   },
-  achievementToast: {
-    position: "absolute",
-    top: 18,
-    left: 16,
-    right: 16,
-    zIndex: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.card,
-    borderWidth: 2,
-    borderColor: theme.colors.primaryLight
-  },
-  achievementEmoji: {
-    fontSize: 38
-  },
-  achievementTextBox: {
-    flex: 1
-  },
-  achievementTitle: {
-    color: theme.colors.primaryLight,
-    fontSize: 13,
-    fontFamily: theme.fonts.bodyBold
-  },
-  achievementName: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontFamily: theme.fonts.headingBold
-  },
-  achievementDescription: {
-    color: theme.colors.muted,
-    fontSize: 13,
-    fontFamily: theme.fonts.bodyBold
-  },
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
     gap: 14
   },
-  heroImage: {
-    width: "100%",
-    height: 320,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.input,
-    borderWidth: 1,
-    borderColor: theme.colors.accentBorder
-  },
-  tapHint: {
-    marginTop: 8,
-    color: theme.colors.muted,
-    textAlign: "center",
-    fontSize: 14,
-    fontFamily: theme.fonts.bodyBold
-  },
-  heroLoadingBox: {
-    height: 260,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.input,
-    borderWidth: 1,
-    borderColor: theme.colors.accentBorder
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 12
   },
-  headerText: {
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     flex: 1
   },
   avatar: {
@@ -592,6 +561,9 @@ const styles = StyleSheet.create({
   emoji: {
     fontSize: 42
   },
+  headerText: {
+    flex: 1
+  },
   greeting: {
     color: theme.colors.muted,
     fontSize: 14,
@@ -599,16 +571,144 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 30,
+    fontSize: 28,
     fontFamily: theme.fonts.heading,
-    lineHeight: 34
+    lineHeight: 32
   },
-  subtitle: {
+  menuButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.card,
+    borderWidth: 2,
+    borderColor: theme.colors.primaryLight
+  },
+  menuButtonText: {
+    color: theme.colors.text,
+    fontSize: 28,
+    fontFamily: theme.fonts.headingBold
+  },
+  menuPanel: {
+    gap: 10,
+    padding: 14,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border
+  },
+  menuTitle: {
+    color: theme.colors.primaryLight,
+    fontSize: 22,
+    fontFamily: theme.fonts.headingBold
+  },
+  menuItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.input,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder
+  },
+  menuItemDisabled: {
+    opacity: 0.45
+  },
+  menuItemText: {
+    color: theme.colors.text,
+    fontSize: 17,
+    fontFamily: theme.fonts.bodyBold
+  },
+  menuSection: {
+    gap: 10,
+    paddingTop: 6
+  },
+  menuSectionTitle: {
     color: theme.colors.muted,
     fontSize: 15,
     fontFamily: theme.fonts.bodyBold
   },
+  suggestions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  suggestionChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: theme.colors.input,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder
+  },
+  suggestionText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold
+  },
+  achievementBox: {
+    padding: 12,
+    borderRadius: theme.radius.md,
+    backgroundColor: "rgba(192,96,255,0.18)",
+    borderWidth: 1,
+    borderColor: theme.colors.primaryLight
+  },
+  achievementText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyBold
+  },
+  heroBox: {
+    width: "100%",
+    height: 360,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.input,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder,
+    overflow: "hidden"
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%"
+  },
+  heroLoading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12
+  },
+  heroPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8
+  },
+  placeholderEmoji: {
+    fontSize: 78
+  },
+  placeholderText: {
+    color: theme.colors.muted,
+    fontSize: 22,
+    fontFamily: theme.fonts.headingBold
+  },
+  loadingText: {
+    color: theme.colors.muted,
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 17
+  },
+  tapHint: {
+    color: theme.colors.muted,
+    textAlign: "center",
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
   input: {
+    flex: 1,
     backgroundColor: theme.colors.input,
     borderWidth: 1,
     borderColor: theme.colors.accentBorder,
@@ -618,105 +718,30 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: theme.fonts.bodyBold
   },
-  micButton: {
-    minHeight: 126,
-    flexDirection: "row",
+  smallMicButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: "center",
-    gap: 14,
-    padding: 16,
-    borderRadius: theme.radius.lg,
+    justifyContent: "center",
     backgroundColor: theme.colors.card,
     borderWidth: 2,
     borderColor: theme.colors.primaryLight
   },
-  micButtonActive: {
-    backgroundColor: "rgba(192,96,255,0.25)"
-  },
-  micButtonPressed: {
-    transform: [{ scale: 0.98 }]
-  },
-  micButtonDisabled: {
-    opacity: 0.8
-  },
-  micCircle: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(192,96,255,0.18)",
-    borderWidth: 2,
-    borderColor: theme.colors.primaryLight
-  },
-  micCircleActive: {
+  smallMicButtonActive: {
     backgroundColor: "rgba(192,96,255,0.35)"
   },
-  micEmoji: {
-    fontSize: 40
+  micButtonDisabled: {
+    opacity: 0.7
   },
-  micTextBox: {
-    flex: 1
+  smallMicText: {
+    fontSize: 34
   },
-  micTitle: {
-    color: theme.colors.text,
-    fontSize: 24,
-    fontFamily: theme.fonts.headingBold
-  },
-  micSubtitle: {
-    marginTop: 4,
-    color: theme.colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: theme.fonts.bodyBold
-  },
-  suggestions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10
-  },
-  suggestionButton: {
-    flexGrow: 1
-  },
-  loadingBox: {
-    minHeight: 220,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12
-  },
-  loadingText: {
-    color: theme.colors.muted,
-    fontFamily: theme.fonts.bodyBold,
-    fontSize: 17
-  },
-  result: {
-    gap: 14
-  },
-  resultName: {
+  listeningText: {
     color: theme.colors.primaryLight,
-    fontSize: 24,
     textAlign: "center",
+    fontSize: 18,
     fontFamily: theme.fonts.headingBold
-  },
-  descriptionCard: {
-    padding: 16,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border
-  },
-  description: {
-    color: theme.colors.text,
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: "center",
-    fontFamily: theme.fonts.bodyBold
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 10
-  },
-  actionButton: {
-    flex: 1
   },
   bottomBar: {
     position: "absolute",
