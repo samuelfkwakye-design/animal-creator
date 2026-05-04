@@ -23,6 +23,8 @@ import {
     ActivityIndicator,
     Animated,
     Image,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -274,7 +276,11 @@ export default function CreateScreen() {
   }
 
   return (
-    <View style={styles.page}>
+    <KeyboardAvoidingView
+      style={styles.page}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+    >
       {achievement && (
         <View style={styles.achievementToast}>
           <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
@@ -471,7 +477,7 @@ export default function CreateScreen() {
           disabled={!name.trim() || isGenerating}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -519,7 +525,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 140,
+    paddingBottom: 150,
     gap: 14
   },
   heroImage: {
@@ -695,7 +701,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 76,
+    bottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "rgba(8,11,24,0.96)",
