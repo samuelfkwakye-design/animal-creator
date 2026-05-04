@@ -6,9 +6,6 @@ const CLAUDE_URL =
     ? "/api/generate"
     : "https://api.anthropic.com/v1/messages";
 
-/**
- * STEP 1: Get TEXT FIRST (FAST)
- */
 export async function getAnimalText(
   name: string,
   style: keyof typeof ART_STYLES
@@ -16,15 +13,29 @@ export async function getAnimalText(
   const styleDesc = ART_STYLES[style].prompt;
 
   const prompt = `
-A child is creating a magical animal called: "${name}"
+A child is creating a magical animal idea using words, emojis, or both.
 
-Write exactly 2 short exciting sentences describing this creature. Use simple joyful words.
-Make it magical and fun. No adult language.
+Child's idea:
+"${name}"
+
+Important:
+- If the idea contains emojis, understand what the emojis mean.
+- Example: "🦁🔥" means a fire lion.
+- Example: "🐘🌈" means a rainbow elephant.
+- Example: "🤖🐯" means a robot tiger.
+- Turn the child's words and emojis into one clear magical animal.
+- Do not mention that emojis were used.
+
+Write exactly 2 short exciting sentences describing this creature.
+Use simple joyful words.
+Make it magical and fun.
+No adult language.
+Keep the description under 40 words.
 
 Then on a new line write:
-IMAGE: detailed image prompt for ${styleDesc}, cute magical creature, based on "${name}", no text, no humans, child-friendly, high quality, bright, joyful, clear subject, beautiful background
+IMAGE: detailed image prompt for ${styleDesc}, based on the child's idea "${name}", interpret any emojis as visual animal/theme clues, cute magical creature, no text, no humans, child-friendly, high quality, bright, joyful, clear full-body subject, beautiful background
 
-Keep description under 40 words. Be enthusiastic!
+Be enthusiastic!
 `;
 
   const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY as string;
@@ -72,11 +83,12 @@ Keep description under 40 words. Be enthusiastic!
 
   const description =
     descriptionRaw?.trim() ||
-    `The ${name} is a magical creature full of colour and joy. It loves happy adventures and sparkling surprises.`;
+    `This magical animal is full of colour and joy. It loves happy adventures and sparkling surprises.`;
 
   const imagePrompt = `
 ${imagePromptRaw || name}.
 ${styleDesc}.
+Interpret all emojis as visual clues for the creature, animal, powers, colours, mood, and background.
 Cute magical animal, beautiful children's book quality, polished digital art, clear full-body creature, joyful expression, rich colour, soft lighting, high detail, no text, no letters, no watermark, no humans.
 `.trim();
 
@@ -86,9 +98,6 @@ Cute magical animal, beautiful children's book quality, polished digital art, cl
   };
 }
 
-/**
- * STEP 2: Get IMAGE AFTER (SLOWER)
- */
 export async function getAnimalImage(imagePrompt: string) {
   if (Platform.OS !== "web") {
     throw new Error(
