@@ -23,6 +23,7 @@ import {
     ActivityIndicator,
     Animated,
     Image,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -55,6 +56,7 @@ export default function CreateScreen() {
 
   const [avatar, setAvatarState] = useState<string | null>(null);
   const [achievement, setAchievement] = useState<Achievement | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const imageFade = useRef(new Animated.Value(0)).current;
   const micPulse = useRef(new Animated.Value(1)).current;
@@ -85,6 +87,21 @@ export default function CreateScreen() {
 
   useEffect(() => {
     getAvatar().then(setAvatarState);
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -193,6 +210,8 @@ export default function CreateScreen() {
   async function handleCreate() {
     if (!name.trim()) return;
 
+    Keyboard.dismiss();
+
     setIsGenerating(true);
     setTextReady(false);
     setImageReady(false);
@@ -278,7 +297,7 @@ export default function CreateScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.page}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
     >
       {achievement && (
@@ -299,7 +318,10 @@ export default function CreateScreen() {
       )}
 
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: 150 + keyboardHeight }
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -464,7 +486,7 @@ export default function CreateScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { bottom: keyboardHeight }]}>
         <GradientButton
           title={
             isGenerating
@@ -525,7 +547,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 150,
     gap: 14
   },
   heroImage: {
@@ -701,7 +722,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "rgba(8,11,24,0.96)",
