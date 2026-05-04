@@ -58,28 +58,51 @@ export default function CreateScreen() {
 
   const imageFade = useRef(new Animated.Value(0)).current;
   const micPulse = useRef(new Animated.Value(1)).current;
+  const listenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { speaking, speak } = useSpeech();
+
+  function clearListenTimer() {
+    if (listenTimer.current) {
+      clearTimeout(listenTimer.current);
+      listenTimer.current = null;
+    }
+  }
+
+  function stopListening() {
+    clearListenTimer();
+    setIsListening(false);
+
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (error) {
+      console.log("Stop speech error:", error);
+    }
+  }
 
   useSpeechRecognitionEvent("start", () => {
     setIsListening(true);
   });
 
   useSpeechRecognitionEvent("end", () => {
+    clearListenTimer();
     setIsListening(false);
   });
 
   useSpeechRecognitionEvent("result", (event) => {
+    console.log("Speech result:", event.results);
+
     const spokenText = event.results[0]?.transcript;
 
     if (spokenText) {
       setName(spokenText.trim().toLowerCase());
+      stopListening();
     }
   });
 
   useSpeechRecognitionEvent("error", async (event) => {
     console.log("Speech error:", event.error, event.message);
-    setIsListening(false);
+    stopListening();
     await hapticError();
   });
 
@@ -99,6 +122,12 @@ export default function CreateScreen() {
     return () => {
       showSub.remove();
       hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearListenTimer();
     };
   }, []);
 
@@ -146,25 +175,38 @@ export default function CreateScreen() {
 
   async function handleListen() {
     try {
+      if (isListening) {
+        stopListening();
+        return;
+      }
+
       const permission =
         await ExpoSpeechRecognitionModule.requestPermissionsAsync();
 
       if (!permission.granted) {
         await hapticError();
+        Alert.alert("Microphone needed", "Please allow microphone access.");
         return;
       }
 
       await hapticSuccess();
+      setIsListening(true);
 
       ExpoSpeechRecognitionModule.start({
         lang: "en-GB",
-        interimResults: false,
+        interimResults: true,
         maxAlternatives: 1,
         continuous: false
       });
+
+      clearListenTimer();
+
+      listenTimer.current = setTimeout(() => {
+        stopListening();
+      }, 6000);
     } catch (error) {
       console.log(error);
-      setIsListening(false);
+      stopListening();
       await hapticError();
     }
   }
@@ -210,6 +252,7 @@ export default function CreateScreen() {
 
     Keyboard.dismiss();
     setMenuOpen(false);
+    stopListening();
 
     setIsGenerating(true);
     setTextReady(false);
@@ -292,6 +335,7 @@ export default function CreateScreen() {
   }
 
   function reset() {
+    stopListening();
     setName("");
     setImageUrl(null);
     setDescription("");
@@ -495,11 +539,11 @@ export default function CreateScreen() {
 
           <Pressable
             onPress={handleListen}
-            disabled={isListening || isGenerating}
+            disabled={isGenerating}
             style={[
               styles.smallMicButton,
               isListening && styles.smallMicButtonActive,
-              (isListening || isGenerating) && styles.micButtonDisabled
+              isGenerating && styles.micButtonDisabled
             ]}
           >
             <Animated.Text
@@ -508,13 +552,15 @@ export default function CreateScreen() {
                 { transform: [{ scale: micPulse }] }
               ]}
             >
-              {isListening ? "🎙️" : "🎤"}
+              {isListening ? "🛑" : "🎤"}
             </Animated.Text>
           </Pressable>
         </View>
 
         {isListening && (
-          <Text style={styles.listeningText}>I’m listening...</Text>
+          <Text style={styles.listeningText}>
+            I’m listening... tap stop if needed
+          </Text>
         )}
       </ScrollView>
 
