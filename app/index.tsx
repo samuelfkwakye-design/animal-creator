@@ -55,6 +55,7 @@ export default function CreateScreen() {
   const [achievement, setAchievement] = useState<Achievement | null>(null);
 
   const imageFade = useRef(new Animated.Value(0)).current;
+  const micPulse = useRef(new Animated.Value(1)).current;
 
   const { speaking, speak } = useSpeech();
 
@@ -83,6 +84,29 @@ export default function CreateScreen() {
   useEffect(() => {
     getAvatar().then(setAvatarState);
   }, []);
+
+  useEffect(() => {
+    if (!isListening) {
+      micPulse.stopAnimation();
+      micPulse.setValue(1);
+      return;
+    }
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(micPulse, {
+          toValue: 1.06,
+          duration: 450,
+          useNativeDriver: true
+        }),
+        Animated.timing(micPulse, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true
+        })
+      ])
+    ).start();
+  }, [isListening, micPulse]);
 
   function fadeInImage() {
     imageFade.setValue(0);
@@ -314,14 +338,12 @@ export default function CreateScreen() {
           <View style={styles.headerText}>
             <Text style={styles.greeting}>Hi Jason 👋</Text>
             <Text style={styles.title}>Jason’s Animal World</Text>
-            <Text style={styles.subtitle}>
-              Type it or say it 🎙️
-            </Text>
+            <Text style={styles.subtitle}>Type it, say it, or use emojis ✨</Text>
           </View>
         </View>
 
         <TextInput
-          placeholder="Type your animal..."
+          placeholder="Type animal or emoji..."
           placeholderTextColor={theme.colors.muted}
           value={name}
           onChangeText={setName}
@@ -330,12 +352,35 @@ export default function CreateScreen() {
           onSubmitEditing={handleCreate}
         />
 
-        <GradientButton
-          title={isListening ? "🎙️ Listening..." : "🎙️ Say Animal"}
-          variant="secondary"
+        <Pressable
           onPress={handleListen}
           disabled={isListening || isGenerating}
-        />
+          style={({ pressed }) => [
+            styles.micButton,
+            isListening && styles.micButtonActive,
+            pressed && !isListening && styles.micButtonPressed,
+            (isListening || isGenerating) && styles.micButtonDisabled
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.micCircle,
+              isListening && styles.micCircleActive,
+              { transform: [{ scale: micPulse }] }
+            ]}
+          >
+            <Text style={styles.micEmoji}>{isListening ? "🎙️" : "🎤"}</Text>
+          </Animated.View>
+
+          <View style={styles.micTextBox}>
+            <Text style={styles.micTitle}>
+              {isListening ? "I’m listening..." : "Tap to Speak"}
+            </Text>
+            <Text style={styles.micSubtitle}>
+              {isListening ? "Say an animal name" : "Jason can say lion, tiger, or 🦁🔥"}
+            </Text>
+          </View>
+        </Pressable>
 
         <StylePicker selected={style} onSelect={setStyle} />
 
@@ -544,6 +589,57 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     color: theme.colors.text,
     fontSize: 20,
+    fontFamily: theme.fonts.bodyBold
+  },
+  micButton: {
+    minHeight: 126,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.card,
+    borderWidth: 2,
+    borderColor: theme.colors.primaryLight
+  },
+  micButtonActive: {
+    backgroundColor: "rgba(192,96,255,0.25)"
+  },
+  micButtonPressed: {
+    transform: [{ scale: 0.98 }]
+  },
+  micButtonDisabled: {
+    opacity: 0.8
+  },
+  micCircle: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(192,96,255,0.18)",
+    borderWidth: 2,
+    borderColor: theme.colors.primaryLight
+  },
+  micCircleActive: {
+    backgroundColor: "rgba(192,96,255,0.35)"
+  },
+  micEmoji: {
+    fontSize: 40
+  },
+  micTextBox: {
+    flex: 1
+  },
+  micTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    fontFamily: theme.fonts.headingBold
+  },
+  micSubtitle: {
+    marginTop: 4,
+    color: theme.colors.muted,
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: theme.fonts.bodyBold
   },
   suggestions: {
