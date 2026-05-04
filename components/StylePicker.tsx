@@ -2,12 +2,17 @@ import { theme } from "@/constants/theme";
 import { hapticLight } from "@/utils/haptics";
 import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 
-export type ArtStyleKey = "cartoon" | "watercolor" | "pixel" | "crayon" | "3d";
+export type ArtStyleKey = "3d" | "cartoon" | "watercolor" | "pixel" | "crayon";
 
 export const ART_STYLES: Record<
   ArtStyleKey,
   { label: string; prompt: string }
 > = {
+  "3d": {
+    label: "✨ 3D",
+    prompt:
+      "3D render, cute Blender style, soft lighting, toy-like, pastel colors"
+  },
   cartoon: {
     label: "🎨 Cartoon",
     prompt: "vibrant cartoon illustration, bold outlines, Pixar style, colorful"
@@ -24,13 +29,16 @@ export const ART_STYLES: Record<
   crayon: {
     label: "🖍️ Crayon",
     prompt: "crayon drawing by a child, colorful, hand-drawn, playful scribbles"
-  },
-  "3d": {
-    label: "✨ 3D",
-    prompt:
-      "3D render, cute Blender style, soft lighting, toy-like, pastel colors"
   }
 };
+
+const STYLE_ORDER: ArtStyleKey[] = [
+  "3d",
+  "cartoon",
+  "watercolor",
+  "pixel",
+  "crayon"
+];
 
 interface Props {
   selected: ArtStyleKey;
@@ -49,7 +57,7 @@ export function StylePicker({ selected, onSelect }: Props) {
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
     >
-      {(Object.keys(ART_STYLES) as ArtStyleKey[]).map((key) => {
+      {STYLE_ORDER.map((key) => {
         const active = key === selected;
 
         return (
@@ -74,8 +82,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderRadius: theme.radius.full,
     backgroundColor: theme.colors.card,
     borderWidth: 1,
@@ -88,7 +96,7 @@ const styles = StyleSheet.create({
   text: {
     color: theme.colors.muted,
     fontFamily: theme.fonts.bodyBold,
-    fontSize: 14
+    fontSize: 15
   },
   activeText: {
     color: theme.colors.text

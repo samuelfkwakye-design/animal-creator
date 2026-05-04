@@ -149,7 +149,6 @@ export default function CreateScreen() {
 
   return (
     <View style={styles.page}>
-      {/* 🔥 ACHIEVEMENT POPUP */}
       {achievement && (
         <View style={styles.achievementToast}>
           <Text style={styles.achievementEmoji}>{achievement.emoji}</Text>
@@ -172,7 +171,17 @@ export default function CreateScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* HEADER */}
+        {textReady && imageReady && imageUrl && (
+          <Image source={{ uri: imageUrl }} style={styles.heroImage} />
+        )}
+
+        {textReady && !imageReady && (
+          <View style={styles.heroLoadingBox}>
+            <ActivityIndicator color={theme.colors.primaryLight} />
+            <Text style={styles.loadingText}>🎨 Drawing your animal...</Text>
+          </View>
+        )}
+
         <View style={styles.header}>
           {avatar ? (
             <Image source={{ uri: avatar }} style={styles.avatar} />
@@ -215,7 +224,6 @@ export default function CreateScreen() {
           </View>
         )}
 
-        {/* INITIAL LOADING */}
         {isGenerating && !textReady && (
           <View style={styles.loadingBox}>
             <ActivityIndicator
@@ -228,26 +236,10 @@ export default function CreateScreen() {
           </View>
         )}
 
-        {/* RESULT */}
         {textReady && (
           <View style={styles.result}>
             <Text style={styles.resultName}>“{name}”</Text>
 
-            {/* 🎨 IMAGE FIRST */}
-            {!imageReady && (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator color={theme.colors.primaryLight} />
-                <Text style={styles.loadingText}>
-                  🎨 Drawing your animal...
-                </Text>
-              </View>
-            )}
-
-            {imageReady && imageUrl && (
-              <Image source={{ uri: imageUrl }} style={styles.image} />
-            )}
-
-            {/* 🧠 TEXT AFTER */}
             <View style={styles.descriptionCard}>
               <Text style={styles.description}>{description}</Text>
             </View>
@@ -356,6 +348,25 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
     gap: 14
   },
+  heroImage: {
+    width: "100%",
+    height: 320,
+    resizeMode: "contain",
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.input,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder
+  },
+  heroLoadingBox: {
+    height: 260,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.input,
+    borderWidth: 1,
+    borderColor: theme.colors.accentBorder
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -427,15 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     textAlign: "center",
     fontFamily: theme.fonts.headingBold
-  },
-  image: {
-    width: "100%",
-    maxHeight: 340,
-    aspectRatio: 1,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.input,
-    borderWidth: 1,
-    borderColor: theme.colors.accentBorder
   },
   descriptionCard: {
     padding: 16,
