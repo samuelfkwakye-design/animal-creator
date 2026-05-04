@@ -1,7 +1,7 @@
 import { ART_STYLES } from "@/components/StylePicker";
 import { Platform } from "react-native";
 
-const API_URL =
+const CLAUDE_URL =
   Platform.OS === "web"
     ? "/api/generate"
     : "https://api.anthropic.com/v1/messages";
@@ -19,8 +19,7 @@ Write exactly 2 short exciting sentences describing this creature. Use simple jo
 Make it magical and fun. No adult language.
 
 Then on a new line write:
-IMAGE: [detailed image generation prompt for: ${styleDesc}, the creature described,
-no text, no humans, child-friendly, white or nature background, high detail]
+IMAGE: detailed image prompt for ${styleDesc}, cute magical creature, based on "${name}", no text, no humans, child-friendly, high quality, bright, joyful, clear subject, beautiful background
 
 Keep description under 40 words. Be enthusiastic!
 `;
@@ -31,7 +30,7 @@ Keep description under 40 words. Be enthusiastic!
     throw new Error("Missing Anthropic API key");
   }
 
-  const body =
+  const claudeBody =
     Platform.OS === "web"
       ? { prompt }
       : {
@@ -40,45 +39,62 @@ Keep description under 40 words. Be enthusiastic!
           messages: [{ role: "user", content: prompt }]
         };
 
-  const headers: Record<string, string> =
+  const claudeHeaders: Record<string, string> =
     Platform.OS === "web"
-      ? {
-          "Content-Type": "application/json"
-        }
+      ? { "Content-Type": "application/json" }
       : {
           "Content-Type": "application/json",
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01"
         };
 
-  const res = await fetch(API_URL, {
+  const claudeRes = await fetch(CLAUDE_URL, {
     method: "POST",
-    headers,
-    body: JSON.stringify(body)
+    headers: claudeHeaders,
+    body: JSON.stringify(claudeBody)
   });
 
-  if (!res.ok) {
-    throw new Error("Animal generation failed");
+  if (!claudeRes.ok) {
+    throw new Error("Animal description generation failed");
   }
 
-  const data = await res.json();
+  const claudeData = await claudeRes.json();
 
   const text =
-    Platform.OS === "web" ? data.text : data.content?.[0]?.text || "";
+    Platform.OS === "web" ? claudeData.text : claudeData.content?.[0]?.text || "";
 
-  const [descriptionRaw, imagePartRaw] = text.split("IMAGE:");
+  const [descriptionRaw, imagePromptRaw] = text.split("IMAGE:");
 
   const description =
     descriptionRaw?.trim() ||
     `The ${name} is a magical creature full of colour and joy. It loves happy adventures and sparkling surprises.`;
 
-  const imagePrompt = encodeURIComponent(
-    `${imagePartRaw || name}, ${styleDesc}, cute magical animal, child-friendly, no humans, no text, no watermark`
-  );
+  const imagePrompt = `
+${imagePromptRaw || name}.
+${styleDesc}.
+Cute magical animal, beautiful children's book quality, polished digital art, clear full-body creature, joyful expression, rich colour, soft lighting, high detail, no text, no letters, no watermark, no humans.
+`.trim();
 
-  const seed = Math.floor(Math.random() * 1000000);
+  let imageUrl = "";
 
-  const imageUrl = `https://image.pollinations.ai/prompt/${imagePrompt}?width=512&height=512&nologo=true&seed=${seed}`;
+  if (Platform.OS === "web") {
+    const imageRes = await fetch("/api/image", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prompt: imagePrompt })
+    });
+
+    if (!imageRes.ok) {
+      throw new Error("Image generation failed");
+    }
+
+    const imageData = await imageRes.json();
+    imageUrl = imageData.imageUrl;
+  } else {
+    throw new Error("fal image generation is currently wired through Vercel web API only");
+  }
 
   return {
     description,
